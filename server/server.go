@@ -439,6 +439,7 @@ var ConnectorsConfig = map[string]func() ConnectorConfig{
 	"authproxy":    func() ConnectorConfig { return new(authproxy.Config) },
 	"linkedin":     func() ConnectorConfig { return new(linkedin.Config) },
 	"microsoft":    func() ConnectorConfig { return new(microsoft.Config) },
+	"plugin":       func() ConnectorConfig { return new(plugin.Config) },
 	// Keep around for backwards compatibility.
 	"samlExperimental": func() ConnectorConfig { return new(saml.Config) },
 }
