@@ -1,12 +1,13 @@
 package plugin
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"plugin"
 
-	"github.com/coreos/dex/connector"
+	"github.com/dexidp/dex/connector"
 	"github.com/sirupsen/logrus"
 )
 
@@ -27,6 +28,7 @@ type pluginConnector struct {
 	configJSON     json.RawMessage
 	loginURL       func(plugin Plugin, scopes connector.Scopes, callbackURL, state string) (string, error)
 	handleCallback func(plugin Plugin, scopes connector.Scopes, r *http.Request) (connector.Identity, error)
+	refresh        func(plugin Plugin, ctx context.Context, s connector.Scopes, identity connector.Identity) (connector.Identity, error)
 }
 
 func (c *pluginConnector) ConfigJSON() json.RawMessage {
@@ -43,6 +45,14 @@ func (c *pluginConnector) LoginURL(scopes connector.Scopes, callbackURL, state s
 
 func (c *pluginConnector) HandleCallback(scopes connector.Scopes, r *http.Request) (connector.Identity, error) {
 	return c.handleCallback(c, scopes, r)
+}
+
+func (c *pluginConnector) Refresh(ctx context.Context, scopes connector.Scopes, identity connector.Identity) (connector.Identity, error) {
+	if c.refresh == nil {
+		return identity, fmt.Errorf("refresh() is not implemented")
+	}
+
+	return c.refresh(c, ctx, scopes, identity)
 }
 
 // Open returns a connector whose details are implemented in a plugin located
@@ -71,11 +81,18 @@ func (conf Config) Open(id string, logger logrus.FieldLogger) (connector.Connect
 		return nil, fmt.Errorf("HandleCallback does not implement required interface")
 	}
 
-	connector := &pluginConnector{
+	conn := &pluginConnector{
 		logger:         logger,
 		configJSON:     conf.PluginConfig,
 		loginURL:       loginURL,
 		handleCallback: handleCallback,
+	}
+
+	if refreshSym, err := plug.Lookup("Refresh"); err == nil {
+		conn.refresh, ok = refreshSym.(func(plugin Plugin, ctx context.Context, s connector.Scopes, identity connector.Identity) (connector.Identity, error))
+		if !ok {
+			return nil, fmt.Errorf("Refresh does not implement required interface")
+		}
 	}
 
 	if initSym, err := plug.Lookup("Init"); err == nil {
@@ -83,11 +100,11 @@ func (conf Config) Open(id string, logger logrus.FieldLogger) (connector.Connect
 		if !ok {
 			return nil, fmt.Errorf("Init does not implement required interface")
 		}
-		err := init(connector)
+		err := init(conn)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	return connector, nil
+	return conn, nil
 }

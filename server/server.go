@@ -31,6 +31,7 @@ import (
 	"github.com/dexidp/dex/connector/microsoft"
 	"github.com/dexidp/dex/connector/mock"
 	"github.com/dexidp/dex/connector/oidc"
+	"github.com/dexidp/dex/connector/plugin"
 	"github.com/dexidp/dex/connector/saml"
 	"github.com/dexidp/dex/storage"
 )
