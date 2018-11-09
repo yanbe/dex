@@ -470,11 +470,6 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authReq storage.AuthRequest) {
-	if s.now().After(authReq.Expiry) {
-		s.renderError(w, http.StatusBadRequest, "User session has expired.")
-		return
-	}
-
 	if err := s.storage.DeleteAuthRequest(authReq.ID); err != nil {
 		if err != storage.ErrNotFound {
 			s.logger.Errorf("Failed to delete authorization request: %v", err)
@@ -501,7 +496,6 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 		// ID token returned immediately if the response_type includes "id_token".
 		// Only valid for implicit and hybrid flows.
 		idToken       string
-		idTokenExpiry time.Time
 
 		accessToken = storage.NewID()
 	)
@@ -539,7 +533,7 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 		case responseTypeIDToken:
 			implicitOrHybrid = true
 			var err error
-			idToken, idTokenExpiry, err = s.newIDToken(authReq.ClientID, authReq.Claims, authReq.Scopes, authReq.Nonce, accessToken, authReq.ConnectorID)
+			idToken, _, err = s.newIDToken(authReq.ClientID, authReq.Claims, authReq.Scopes, authReq.Nonce, accessToken, authReq.ConnectorID)
 			if err != nil {
 				s.logger.Errorf("failed to create ID token: %v", err)
 				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
@@ -555,14 +549,6 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 		v.Set("state", authReq.State)
 		if idToken != "" {
 			v.Set("id_token", idToken)
-			// The hybrid flow with only "code token" or "code id_token" doesn't return an
-			// "expires_in" value. If "code" wasn't provided, indicating the implicit flow,
-			// don't add it.
-			//
-			// https://openid.net/specs/openid-connect-core-1_0.html#HybridAuthResponse
-			if code.ID == "" {
-				v.Set("expires_in", strconv.Itoa(int(idTokenExpiry.Sub(s.now()).Seconds())))
-			}
 		}
 		if code.ID != "" {
 			v.Set("code", code.ID)
