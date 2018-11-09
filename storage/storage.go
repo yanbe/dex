@@ -36,8 +36,9 @@ func NewID() string {
 
 // GCResult returns the number of objects deleted by garbage collection.
 type GCResult struct {
-	AuthRequests int64
-	AuthCodes    int64
+	AuthRequests  int64
+	AuthCodes     int64
+	RefreshTokens int64
 }
 
 // Storage is the storage interface used by the server. Implementations are

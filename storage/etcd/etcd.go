@@ -72,6 +72,10 @@ func (c *conn) GarbageCollect(now time.Time) (result storage.GCResult, err error
 			result.AuthCodes++
 		}
 	}
+
+	// not implemented
+	result.RefreshTokens = 0
+
 	return result, delErr
 }
 

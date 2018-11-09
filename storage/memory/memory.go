@@ -80,6 +80,12 @@ func (s *memStorage) GarbageCollect(now time.Time) (result storage.GCResult, err
 				result.AuthRequests++
 			}
 		}
+		for id, r := range s.refreshTokens {
+			if r.LastUsed.After(r.CreatedAt) && now.Sub(r.LastUsed) > time.Hour {
+				delete(s.refreshTokens, id)
+				result.RefreshTokens++
+			}
+		}
 	})
 	return result, nil
 }

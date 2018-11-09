@@ -699,6 +699,7 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 	}()
 	var refreshToken string
 	if reqRefresh {
+		now := s.now()
 		refresh := storage.RefreshToken{
 			ID:            storage.NewID(),
 			Token:         storage.NewID(),
@@ -708,8 +709,8 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 			Claims:        authCode.Claims,
 			Nonce:         authCode.Nonce,
 			ConnectorData: authCode.ConnectorData,
-			CreatedAt:     s.now(),
-			LastUsed:      s.now(),
+			CreatedAt:     now,
+			LastUsed:      now,
 		}
 		token := &internal.RefreshToken{
 			RefreshId: refresh.ID,
@@ -918,7 +919,7 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 	}
 
 	newToken := &internal.RefreshToken{
-		RefreshId: refresh.ID,
+		RefreshId: storage.NewID(),
 		Token:     storage.NewID(),
 	}
 	rawNewToken, err := internal.Marshal(newToken)
@@ -927,22 +928,27 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 		return
 	}
+	now := s.now()
+	newRefresh := storage.RefreshToken{
+		ID:            newToken.RefreshId,
+		Token:         newToken.Token,
+		ClientID:      refresh.ClientID,
+		ConnectorID:   refresh.ConnectorID,
+		Scopes:        refresh.Scopes,
+		Claims:        claims,
+		Nonce:         refresh.Nonce,
+		ConnectorData: refresh.ConnectorData,
+		CreatedAt:     now,
+		LastUsed:      now,
+	}
+	if err := s.storage.CreateRefresh(newRefresh); err != nil {
+		s.logger.Errorf("failed to create refresh token: %v", err)
+		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+		return
+	}
 
-	lastUsed := s.now()
 	updater := func(old storage.RefreshToken) (storage.RefreshToken, error) {
-		if old.Token != refresh.Token {
-			return old, errors.New("refresh token claimed twice")
-		}
-		old.Token = newToken.Token
-		// Update the claims of the refresh token.
-		//
-		// UserID intentionally ignored for now.
-		old.Claims.Username = ident.Username
-		old.Claims.Email = ident.Email
-		old.Claims.EmailVerified = ident.EmailVerified
-		old.Claims.Groups = ident.Groups
-		old.ConnectorData = ident.ConnectorData
-		old.LastUsed = lastUsed
+		old.LastUsed = now
 		return old, nil
 	}
 
@@ -952,7 +958,7 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		if old.Refresh[refresh.ClientID].ID != refresh.ID {
 			return old, errors.New("refresh token invalid")
 		}
-		old.Refresh[refresh.ClientID].LastUsed = lastUsed
+		old.Refresh[refresh.ClientID].LastUsed = now
 		return old, nil
 	}); err != nil {
 		s.logger.Errorf("failed to update offline session: %v", err)

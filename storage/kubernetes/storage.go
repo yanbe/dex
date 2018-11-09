@@ -598,5 +598,9 @@ func (cli *client) GarbageCollect(now time.Time) (result storage.GCResult, err e
 			result.AuthCodes++
 		}
 	}
+
+	// not implemented
+	result.RefreshTokens = 0
+
 	return result, delErr
 }

@@ -100,6 +100,13 @@ func (c *conn) GarbageCollect(now time.Time) (result storage.GCResult, err error
 	if n, err := r.RowsAffected(); err == nil {
 		result.AuthCodes = n
 	}
+	r, err = c.Exec(`delete from refresh_token where last_used > created_at and ($1 - last_used) > interval '1' hour`, now)
+	if err != nil {
+		return result, fmt.Errorf("gc refresh_token: %v", err)
+	}
+	if n, err := r.RowsAffected(); err == nil {
+		result.RefreshTokens = n
+	}
 	return
 }
 
